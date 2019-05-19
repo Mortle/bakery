@@ -7,7 +7,6 @@ require_relative 'core/logger.rb'
 
 module Fides
   class Bakery
-    #It is batter to rename
     include Core::Config
     include Core::Logger
     def initialize
@@ -21,12 +20,12 @@ module Fides
       @orders.each_with_index do |ord, index|
         logger.info "Bakery -- Processing order №#{index + 1}..."
         packs = @stock.select{ |product| ord[:code] == product[:code] }.map{|p| p[:amount].to_i}
-        output(make_order(ord[:amount].to_i, packs, ord[:code]), ord)
+        output(make_change(ord[:amount].to_i, packs, ord[:code]), ord)
       end
       logger.info 'Bakery -- End processing'
     end
 
-    def make_order(amount, packs, code)
+    def make_change(amount, packs, code)
      packs.sort! { |a, b| b <=> a }
      optimal_change = Hash.new do |hash, key|
        hash[key] = if key < packs.min
@@ -46,7 +45,7 @@ module Fides
     end
 
     def output(packs, order)
-      puts "#{order.join(' ')} #{packs.inject(0.0){|sum, p| sum += p[:cost].to_f}}$"
+      puts "#{order.to_a.join(' ')} $#{packs.inject(0.0){|sum, p| sum += p[:cost].to_f}.round(2)}"
       packs.uniq().each{ |pack| puts "  #{packs.count(pack)} x #{pack[:amount]} $#{pack[:cost]}"}
     end
 
