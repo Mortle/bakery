@@ -1,30 +1,33 @@
 require 'active_support'
 require 'active_support/core_ext'
+require 'csv'
 require 'pry'
 require_relative 'core/config.rb'
 require_relative 'core/logger.rb'
 
 module Fides
   class Bakery
+    #It is batter to rename
     include Core::Config
     include Core::Logger
+    def initialize
+      super
+      @stock = CSV.read('stock.csv', headers: true, header_converters: :symbol)
+      @orders = CSV.read('order.csv', headers: true, header_converters: :symbol)
+    end
 
     def process
       logger.info 'Bakery -- Start processing'
-      order.each_with_index do |ord, index|
+      @orders.each_with_index do |ord, index|
         logger.info "Bakery -- Processing order №#{index + 1}..."
-        packs = []
-        stock.each do |product|
-          packs << product[1].to_i if ord[0] == product[0]
-        end
-        output make_change(ord[1].to_i, packs), ord
+        packs = @stock.select{ |product| ord[:code] == product[:code] }.map{|p| p[:amount].to_i}
+        output(make_order(ord[:amount].to_i, packs, ord[:code]), ord)
       end
       logger.info 'Bakery -- End processing'
     end
 
-    def make_change(amount, packs)
+    def make_order(amount, packs, code)
      packs.sort! { |a, b| b <=> a }
-     # memoize solutions
      optimal_change = Hash.new do |hash, key|
        hash[key] = if key < packs.min
          []
@@ -32,32 +35,23 @@ module Fides
          [key]
        else
          packs.
-           # prune unhelpful packs
            reject { |pack| pack > key }.
-           # prune packs that are factors of larger packs
-           inject([]) {|mem, var| mem.any? {|c| c%var == 0} ? mem : mem+[var]}.
-           # recurse
+           inject([]) {|mem, var| mem.any? { |p| p%var == 0 } ? mem : mem + [var]}.
            map { |pack| [pack] + hash[key - pack] }.
-           # prune unhelpful solutions
            reject { |change| change.sum != key }.
-           # pick the smallest, empty if none
            min { |a, b| a.size <=> b.size } || []
        end
      end
-     optimal_change[amount]
+     optimal_change[amount].map{|amount| @stock.find{|p| p[:code] == code && p[:amount].to_i == amount }}
     end
-  end
 
-  def output(packs, order)
-    total_cost = 0.0
-    packs.each do |pack|
-      stock 
+    def output(packs, order)
+      puts "#{order.join(' ')} #{packs.inject(0.0){|sum, p| sum += p[:cost].to_f}}$"
+      packs.uniq().each{ |pack| puts "  #{packs.count(pack)} x #{pack[:amount]} $#{pack[:cost]}"}
     end
-    order.split(" ") + "$" + total_cost
-  end
 
+  end
 end
 
 bakery = Fides::Bakery.new
 bakery.process
-binding.pry
